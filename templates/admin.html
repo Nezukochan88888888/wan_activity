@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - Classroom Hub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-dark sticky-top">
+        <div class="container">
+            <span class="navbar-brand">Teacher Dashboard - Group Manager</span>
+            <div class="d-flex align-items-center gap-3">
+                <div class="form-check form-switch text-white">
+                    <input class="form-check-input" type="checkbox" id="globalActivityToggle"
+                        onchange="toggleGlobalActivity()">
+                    <label class="form-check-label" for="globalActivityToggle">Activity Active</label>
+                </div>
+                <button class="btn btn-outline-danger btn-sm" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+
+        <!-- Global Announcement -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body py-2 d-flex align-items-center gap-3">
+                <strong class="text-secondary">Announcement:</strong>
+                <input type="text" id="announcementText" class="form-control border-0 bg-light"
+                    onblur="saveAnnouncement()" placeholder="Global message for all students...">
+            </div>
+        </div>
+
+        <!-- Group Tabs -->
+        <ul class="nav nav-tabs" id="groupTabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#group-pane"
+                    onclick="switchGroup('1')">Group 1</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#group-pane"
+                    onclick="switchGroup('2')">Group 2</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#group-pane"
+                    onclick="switchGroup('3')">Group 3</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#group-pane"
+                    onclick="switchGroup('4')">Group 4</button></li>
+        </ul>
+
+        <!-- Group Content Pane -->
+        <div class="tab-content border border-top-0 p-4 bg-white shadow-sm rounded-bottom">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 id="currentGroupTitle" class="text-primary m-0">Group 1 Management</h4>
+                <span class="badge bg-light text-dark border">ID: <span id="currentGroupId">1</span></span>
+            </div>
+
+            <div class="row">
+                <!-- Instructions -->
+                <div class="col-md-5">
+                    <div class="card h-100">
+                        <div class="card-header bg-info text-dark fw-bold">Mission / Instructions</div>
+                        <div class="card-body d-flex flex-column">
+                            <textarea id="instructionText" class="form-control mb-2 flex-grow-1"
+                                placeholder="Enter instructions for this group..."></textarea>
+                            <button class="btn btn-primary w-100" onclick="saveInstructions()">Save
+                                Instructions</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resources -->
+                <div class="col-md-7">
+                    <div class="card h-100">
+                        <div
+                            class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                            <span>Resources</span>
+                            <button class="btn btn-sm btn-light fw-bold text-secondary" onclick="openEditor()">+ New
+                                Note</button>
+                        </div>
+                        <div class="card-body">
+                            <!-- Upload -->
+                            <div class="input-group mb-3">
+                                <input type="file" class="form-control" id="fileInput">
+                                <button class="btn btn-success" type="button" onclick="uploadFile()">Upload</button>
+                            </div>
+
+                            <!-- File List -->
+                            <ul class="list-group" id="fileList">
+                                <!-- Dynamic -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Editor Modal -->
+    <div id="editor-overlay" class="d-none position-fixed top-0 start-0 w-100 h-100 bg-white" style="z-index: 2000;">
+        <div class="container py-4 h-100 d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <input type="text" id="note-title" class="form-control form-control-lg me-3" placeholder="Note Title">
+                <div>
+                    <button class="btn btn-secondary me-2" onclick="closeEditor()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveNote()">Save Note</button>
+                </div>
+            </div>
+            <textarea id="my-mde"></textarea>
+        </div>
+    </div>
+
+    <link href="/static/easymde.min.css" rel="stylesheet">
+    <script src="/static/easymde.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentGroup = '1';
+        let mde = null;
+        let editingFilename = null;
+
+        async function init() {
+            // Init Editor with Image Upload
+            mde = new EasyMDE({
+                element: document.getElementById('my-mde'),
+                spellChecker: false,
+                uploadImage: true,
+                imageUploadEndpoint: "/admin/upload_image",
+                imagePathAbsolute: true,
+                imageTexts: {
+                    sbInit: "Paste/Drop Image Here",
+                    sbOnDragEnter: "Drop to Upload",
+                    sbOnDrop: "Uploading...",
+                    sbProgress: "Uploading... (#progress#)",
+                    sbOnUploaded: "Uploaded!",
+                    sizeUnits: "b,Kb,Mb"
+                }
+            });
+
+            // Load initial
+            await refreshData();
+        }
+
+        function switchGroup(id) {
+            currentGroup = id;
+            document.getElementById('currentGroupTitle').innerText = `Group ${id} Management`;
+            document.getElementById('currentGroupId').innerText = id;
+            refreshData();
+        }
+
+        async function refreshData() {
+            // Fetch status to get global toggles and ALL settings if needed, 
+            // but api/status?group_id=X is cleaner
+            const res = await fetch(`/api/status?group_id=${currentGroup}`);
+            const data = await res.json();
+
+            // Global
+            document.getElementById('globalActivityToggle').checked = data.activity_active;
+            document.getElementById('announcementText').value = data.announcement || '';
+
+            // Group Specific
+            if (data.group_data) {
+                document.getElementById('instructionText').value = data.group_data.instructions || '';
+                renderFiles(data.group_data.references || []);
+            }
+        }
+
+        function renderFiles(files) {
+            const list = document.getElementById('fileList');
+            list.innerHTML = '';
+            if (!files || files.length === 0) {
+                list.innerHTML = '<li class="list-group-item text-muted fst-italic text-center">No resources yet.</li>';
+                return;
+            }
+
+            files.forEach(f => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center';
+
+                let editBtn = '';
+                if (f.type === 'markdown') {
+                    editBtn = `<button class="btn btn-sm btn-outline-primary me-2" onclick="editNote('${f.filename}')">✏️</button>`;
+                }
+
+                li.innerHTML = `
+                    <div class="d-flex align-items-center text-truncate">
+                        <span class="badge bg-secondary me-2">${f.type}</span>
+                        <span class="fw-bold text-truncate" style="max-width: 200px;">${f.name}</span>
+                    </div>
+                    <div>
+                        ${editBtn}
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteFile('${f.filename}')">&times;</button>
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        // --- Actions ---
+
+        async function toggleGlobalActivity() {
+            const active = document.getElementById('globalActivityToggle').checked;
+            await fetch('/admin/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ activity_active: active })
+            });
+        }
+
+        async function saveAnnouncement() {
+            const text = document.getElementById('announcementText').value;
+            await fetch('/admin/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ announcement: text })
+            });
+        }
+
+        async function saveInstructions() {
+            const text = document.getElementById('instructionText').value;
+            await fetch('/admin/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group_id: currentGroup, instructions: text })
+            });
+            alert('Instructions Saved');
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput.files.length === 0) return alert('Choose a file');
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('group_id', currentGroup);
+
+            const res = await fetch('/admin/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (data.success) {
+                fileInput.value = '';
+                refreshData();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        }
+
+        async function deleteFile(filename) {
+            if (!confirm('Delete this file?')) return;
+            await fetch('/admin/delete_reference', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group_id: currentGroup, filename })
+            });
+            refreshData();
+        }
+
+        // --- Editor ---
+
+        function openEditor() {
+            editingFilename = null;
+            document.getElementById('note-title').value = '';
+            document.getElementById('note-title').disabled = false;
+            mde.value('');
+            document.getElementById('editor-overlay').classList.remove('d-none');
+        }
+
+        async function editNote(filename) {
+            editingFilename = filename;
+            const res = await fetch(`/admin/get_markdown?filename=${filename}`);
+            const data = await res.json();
+
+            if (data.success) {
+                document.getElementById('note-title').value = filename.replace('.md', '');
+                document.getElementById('note-title').disabled = true; // Can't rename easily
+                mde.value(data.content);
+                document.getElementById('editor-overlay').classList.remove('d-none');
+            }
+        }
+
+        function closeEditor() {
+            document.getElementById('editor-overlay').classList.add('d-none');
+        }
+
+        async function saveNote() {
+            const title = document.getElementById('note-title').value;
+            const content = mde.value();
+            if (!title) return alert('Title required');
+
+            await fetch('/admin/save_markdown', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    group_id: currentGroup,
+                    title: title,
+                    content: content
+                })
+            });
+
+            closeEditor();
+            refreshData();
+        }
+
+        function logout() { window.location.href = '/logout'; }
+
+        init();
+    </script>
+</body>
+
+</html>

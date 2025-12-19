@@ -1,0 +1,45 @@
+{
+    "activity_active": true,
+    "announcement": "Welcome to the Classroom Hub!",
+    "groups": {
+        "1": {
+            "instructions": "Anaylze the struct and write your task in manila paper provided by the teacher",
+            "references": [
+                {
+                    "name": "RESOURCES",
+                    "filename": "RESOURCES.md",
+                    "type": "markdown"
+                },
+                {
+                    "name": "WIN_20251204_07_24_52_Pro.mp4",
+                    "filename": "WIN_20251204_07_24_52_Pro.mp4",
+                    "type": "video"
+                }
+            ]
+        },
+        "2": {
+            "instructions": "Write down the names of the heroes on manila paper provided by the teacher.",
+            "references": [
+                {
+                    "name": "RESOURCES TO FOLLOW",
+                    "filename": "RESOURCES_TO_FOLLOW.md",
+                    "type": "markdown"
+                }
+            ]
+        },
+        "3": {
+            "instructions": "Wait for instructions...",
+            "references": []
+        },
+        "4": {
+            "instructions": "Follow me",
+            "references": [
+                {
+                    "name": "JUNOMEL_D_LOBIANO_Certificate.pdf",
+                    "filename": "JUNOMEL_D_LOBIANO_Certificate.pdf",
+                    "type": "pdf"
+                }
+            ]
+        }
+    }
+}
